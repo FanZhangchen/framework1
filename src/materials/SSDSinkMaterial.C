@@ -1,20 +1,21 @@
-#include "SSDMaterial.h"
+#include "SSDSinkMaterial.h"
 
-registerMooseObject("framework1App", SSDMaterial);
+registerMooseObject("framework1App", SSDSinkMaterial);
 
 InputParameters
-SSDMaterial::validParams()
+SSDSinkMaterial::validParams()
 {
   InputParameters params = Material::validParams();
 
   // Parameter for radius of the spheres used to interpolate permeability.
-  params.addClassDescription("Compute the evolution equation of SSD density without source and sink");
+  params.addClassDescription("Compute the evolution equation of SSD density");
   params.addParam<Real>("initial_rhos", 1.0,"The initial condition of SSD density");
+  params.addParam<Real>("sink", 6.7, "The number of sink term");
   params.addRequiredCoupledVar("rhog", "variable for SSD density");
   return params;
 }
 
-SSDMaterial::SSDMaterial(const InputParameters & parameters)
+SSDSinkMaterial::SSDSinkMaterial(const InputParameters & parameters)
   : DerivativeMaterialInterface<Material>(parameters),
 
     // Get the parameters of the initial condition of SSD density from the input file
@@ -26,18 +27,22 @@ SSDMaterial::SSDMaterial(const InputParameters & parameters)
 
     // Declare the current value and older value of SSD density
     _rhos(declareADProperty<Real>("rhos")),
-    _rhos_old(getMaterialPropertyOld<Real>("rhos"))
+    _rhos_old(getMaterialPropertyOld<Real>("rhos")),
+
+    // Declare the value of sink term
+    _sink(getParam<Real>("sink"))
 {
 }
 
 void
-SSDMaterial::initQpStatefulProperties()
+SSDSinkMaterial::initQpStatefulProperties()
 {
   _rhos[_qp] = _initial_rhos;
 }
 
 void
-SSDMaterial::computeQpProperties()
+SSDSinkMaterial::computeQpProperties()
 {
-  _rhos[_qp] = _rhos_old[_qp];
+  _rhos[_qp] = _rhos_old[_qp] - _sink *
+  (std::abs(_rhog[_qp])+_rhos_old[_qp]) * std::abs(std::abs(_rhog[_qp]) + _rhos_old[_qp] - _grad_rhog[_qp](0)) *_dt;
 }
